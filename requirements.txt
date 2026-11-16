@@ -1,0 +1,24 @@
+# LSDatasheet dependencies (Python 3.13)
+
+# Frontend
+streamlit>=1.39
+
+# PDF processing
+pymupdf>=1.24
+
+# Embeddings and re-ranking
+sentence-transformers>=3.0
+torch>=2.5
+
+# Vector database
+chromadb>=0.5
+
+# Local LLM client
+ollama>=0.4
+
+# Hybrid search (keyword part)
+rank-bm25>=0.2.2
+
+# Evaluation
+pandas>=2.2
+tqdm>=4.66

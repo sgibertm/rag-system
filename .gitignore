@@ -1,0 +1,10 @@
+# Python environment and cache
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Data: PDFs and the vector database are not uploaded
+data/
