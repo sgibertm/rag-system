@@ -1,9 +1,11 @@
 """
 llm.py: Thin wrapper around the local LLM served by Ollama.
+
 The rest of the backend only talks to the LLM through this file,
 so switching models (Experiment 3) means changing one parameter.
 """
 import time
+
 import ollama
 
 
@@ -13,34 +15,59 @@ class LLMError(Exception):
 
 def generate(messages: list[dict], model: str, temperature: float = 0.1) -> tuple[str, float]:
     """
-    Send a list of chat messages to the local LLM.
+    Send a list of chat messages to the local LLM and return its reply.
 
-    messages: [{"role": "system"|"user"|"assistant", "content": "..."}]
-    Returns: (answer_text, seconds_taken)
+    Args:
+        messages: chat history, e.g.
+            [{"role": "system", "content": "..."},
+             {"role": "user", "content": "..."}]
+        model: name of an Ollama model that has been pulled, e.g. "qwen2.5:3b".
+        temperature: 0 = deterministic and factual, higher = more creative.
+
+    Returns:
+        (answer_text, seconds_taken)
+
+    Raises:
+        LLMError: if Ollama is not running, the model is missing, or the call fails.
     """
-# TODO 1: start the timer
-    start_time = time.time()
-# TODO 2: call ollama.chat(...) with model, messages and temperature in options
-    try:
-        response = ollama.chat(model=model, messages=messages, options={"temperature": temperature})
-        answer_text = response.text
-    except Exception as e:
-        raise LLMError(f"Failed to generate response from the local LLM: {e}")
-# TODO 3: if anything goes wrong (Ollama closed, model not pulled), raise LLMError
-#         with a message that tells the user what to do
+    # perf_counter() is a monotonic, high-resolution clock made for measuring durations
+    start = time.perf_counter()
 
-# TODO 4: stop the timer and return the text and the time
-    end_time = time.time()
-    seconds_taken = end_time - start_time
-    return answer_text, seconds_taken
+    # Only the call to Ollama goes inside the try, so bugs in our own code
+    # are not hidden behind a misleading "LLM failed" message.
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=messages,
+            options={"temperature": temperature},
+        )
+    except ConnectionError as e:
+        # The Ollama server (the app) is not running
+        raise LLMError(
+            "Cannot connect to Ollama. Open the Ollama app and try again."
+        ) from e
+    except ollama.ResponseError as e:
+        # The server answered with an error
+        if e.status_code == 404:
+            raise LLMError(
+                f"Model '{model}' is not downloaded. Run: ollama pull {model}"
+            ) from e
+        raise LLMError(f"Ollama returned an error: {e.error}") from e
+
+    seconds = time.perf_counter() - start
+    answer_text = response["message"]["content"].strip()
+    return answer_text, seconds
 
 
 if __name__ == "__main__":
-# TODO 5: quick manual test: a system message + a user question, print answer and time
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is the capital of France?"}
+    # Manual test: python -m backend.llm   (run from the project root)
+    test_messages = [
+        {"role": "system", "content": "You are a helpful assistant. Answer in one sentence."},
+        {"role": "user", "content": "What is the capital of France?"},
     ]
-    answer, time_taken = generate(messages, model="llama3", temperature=0.1)
-    print(f"Answer: {answer}")
-    print(f"Time taken: {time_taken:.2f} seconds")
+
+    # Two calls: the first one includes loading the model into memory,
+    # the second one shows the real response time (this matters for the latency metric).
+    for attempt in (1, 2):
+        answer, seconds = generate(test_messages, model="qwen2.5:3b", temperature=0.1)
+        print(f"[call {attempt}] {seconds:.2f}s -> {answer}")
