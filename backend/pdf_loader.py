@@ -2,18 +2,6 @@
 #
 # Output: a doc_id + a list of Page(page, text). Page numbers start at 1 so the
 # chunker can keep them on every Chunk and the app can cite sources.
-#
-# Design decisions:
-# - PyMuPDF (pymupdf): fast and handles big datasheets (hundreds of pages) in
-#   a few seconds. We keep the PDF's own text order (no sort=True): sorting by
-#   position mixes the two columns of papers (tested with the YOLO paper).
-# - doc_id = hash of the file bytes: the same PDF always gets the same id, so
-#   the vector store can skip re-ingesting a document it already has.
-# - Datasheets repeat a header/footer on every page ("PIC18F4321 FAMILY",
-#   "© 2006 Microchip ... DS39689B-page 364"). That text adds noise to every
-#   chunk and its embedding, so lines repeated on most pages are removed.
-# - No OCR: if the PDF has (almost) no extractable text we raise NoTextError
-#   so the app can tell the user (required by the assignment).
 
 from __future__ import annotations
 
@@ -42,12 +30,12 @@ MIN_TEXT_PAGE_RATIO = 0.1    # at least 10% of pages must have text
 # A line is a header/footer if it appears on at least this fraction of pages
 REPEATED_LINE_RATIO = 0.5
 MIN_PAGES_FOR_HEADER_REMOVAL = 4
-EDGE_LINES = 4              # lines checked at the top and bottom of each page
+EDGE_LINES = 4 # lines checked at the top and bottom of each page
 
 _LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st"}
 
 
-# ---------------------------------------------------------------- public API
+# public API
 
 def load_pdf(source: str | Path | bytes) -> tuple[str, list[Page]]:
     """Validates the PDF and returns (doc_id, pages).
@@ -74,7 +62,7 @@ def compute_doc_id(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:16]
 
 
-# ---------------------------------------------------------------- validation
+# validation
 
 def _read_bytes(source: str | Path | bytes) -> bytes:
     if isinstance(source, (bytes, bytearray)):
@@ -111,7 +99,7 @@ def _check_has_text(pages: list[Page]) -> None:
         )
 
 
-# ---------------------------------------------------------------- cleaning
+# cleaning
 
 def _clean_text(text: str) -> str:
     for lig, rep in _LIGATURES.items():
