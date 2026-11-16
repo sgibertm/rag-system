@@ -2,6 +2,11 @@
 from dataclasses import dataclass, field
 
 @dataclass
+class Page:
+    page: int        # page number (starting at 1)
+    text: str        # cleaned text of the page (output of pdf_loader)
+
+@dataclass
 class Chunk:
     text: str
     page: int        # page number (starting at 1), for citing sources
