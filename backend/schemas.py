@@ -14,3 +14,4 @@ class Answer:
     pages: list[int] = field(default_factory=list)       # Cited pages
     chunks: list[Chunk] = field(default_factory=list)    # Used chunks
     latency_s: float = 0.0                       # Response time in seconds
+    abstained: bool = False    # True if the LLM said it couldn't find the answer
