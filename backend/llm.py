@@ -1,73 +1,54 @@
 """
-llm.py: Thin wrapper around the local LLM served by Ollama.
-
-The rest of the backend only talks to the LLM through this file,
-so switching models (Experiment 3) means changing one parameter.
+llm.py: connects to the local LLM (Ollama).
+All the other files call the LLM through this file, so to change
+the model (Experiment 3) we only have to change one parameter.
 """
 import time
-
 import ollama
 
 
 class LLMError(Exception):
-    """Raised when the local LLM cannot be reached or fails."""
+    # Our own error for when the LLM fails
+    pass
 
 
-def generate(messages: list[dict], model: str, temperature: float = 0.1) -> tuple[str, float]:
-    """
-    Send a list of chat messages to the local LLM and return its reply.
+def generate(messages, model, temperature=0.1):
+    # messages = [{"role": "system", "content": "..."}, {"role": "user", "content": "..."}]
+    # returns the answer and the seconds it took
 
-    Args:
-        messages: chat history, e.g.
-            [{"role": "system", "content": "..."},
-             {"role": "user", "content": "..."}]
-        model: name of an Ollama model that has been pulled, e.g. "qwen2.5:3b".
-        temperature: 0 = deterministic and factual, higher = more creative.
-
-    Returns:
-        (answer_text, seconds_taken)
-
-    Raises:
-        LLMError: if Ollama is not running, the model is missing, or the call fails.
-    """
-    # perf_counter() is a monotonic, high-resolution clock made for measuring durations
+    # perf_counter is better than time.time() to measure how long something takes
     start = time.perf_counter()
 
-    # Only the call to Ollama goes inside the try, so bugs in our own code
-    # are not hidden behind a misleading "LLM failed" message.
+    # only the call to Ollama is inside the try, so if we have a bug
+    # in our code we see the real error and not "the LLM failed"
     try:
-        response = ollama.chat(
-            model=model,
-            messages=messages,
-            options={"temperature": temperature},
-        )
+        response = ollama.chat(model=model, messages=messages, options={"temperature": temperature})
     except ConnectionError as e:
-        # The Ollama server (the app) is not running
-        raise LLMError(
-            "Cannot connect to Ollama. Open the Ollama app and try again."
-        ) from e
+        # Ollama app is closed
+        raise LLMError("Cannot connect to Ollama. Open the Ollama app and try again.") from e
     except ollama.ResponseError as e:
-        # The server answered with an error
+        # 404 = the model is not downloaded
         if e.status_code == 404:
-            raise LLMError(
-                f"Model '{model}' is not downloaded. Run: ollama pull {model}"
-            ) from e
+            raise LLMError(f"Model '{model}' is not downloaded. Run: ollama pull {model}") from e
+        # any other error from Ollama
         raise LLMError(f"Ollama returned an error: {e.error}") from e
 
     seconds = time.perf_counter() - start
-    answer_text = response["message"]["content"].strip()
-    return answer_text, seconds
+    answer = response["message"]["content"].strip()
+    return answer, seconds
 
 
 if __name__ == "__main__":
-    # Manual test: python -m backend.llm   (run from the project root)
-    test_messages = [
+    # Test: python -m backend.llm
+    messages = [
         {"role": "system", "content": "You are a helpful assistant. Answer in one sentence."},
         {"role": "user", "content": "What is the capital of France?"},
     ]
 
-    # Two calls: the first one includes loading the model into memory,
-    # the second one shows the real response time (this matters for the latency metric).
-    for attempt in (1, 2):
-        answer, seconds = generate(test_messages, model="qwen2.5:3b", temperature=0.1)
-        print(f"[call {attempt}] {seconds:.2f}s -> {answer}")
+    # we call it twice: the first time is slow because the model is loading,
+    # the second time is the real response time
+    answer, seconds = generate(messages, model="qwen2.5:3b")
+    print("Call 1:", round(seconds, 2), "s ->", answer)
+
+    answer, seconds = generate(messages, model="qwen2.5:3b")
+    print("Call 2:", round(seconds, 2), "s ->", answer)
