@@ -5,7 +5,7 @@ All the prompts are here so they are easy to change.
 
 # Sentence the LLM has to say when the answer is not in the chunks.
 # We keep it always in English so we can detect it easily.
-NOT_FOUND = "I could not find this information in the document."
+NOT_FOUND = "OH NO! I could not find this information in the document."
 
 # Rules for the assistant
 SYSTEM_PROMPT = f"""You are LSDatasheet, an assistant that helps engineering students with datasheets.
@@ -17,6 +17,28 @@ Rules:
 4. ONLY if the answer is not in the CONTEXT, reply with exactly this sentence and nothing else:
 {NOT_FOUND}
 5. Answer in the language the user asks for. The sentence of rule 4 is always in English."""
+
+
+# Prompts used by summarizer.py
+
+# MAP step: summarize one part of the document
+SECTION_SUMMARY_PROMPT = """Here is a part of a technical document (pages {first_page} to {last_page}):
+
+{text}
+
+In 1 or 2 sentences, say what topics this part covers. Do not add anything that is not in the text."""
+
+# REDUCE step: combine all the small summaries into the welcome message
+# REDUCE step: one sentence saying what the document is about
+# (the "Welcome to LSDatasheet!" part is added in summarizer.py, so it's always the same)
+WELCOME_PROMPT = """These are summaries of the different parts of a technical document, in order:
+
+{summaries}
+
+In {language}, write ONE sentence that says what the document is (datasheet, paper, manual...)
+and its main topics. Start with "This document". Write only that sentence."""
+
+
 
 
 def format_context(chunks):
