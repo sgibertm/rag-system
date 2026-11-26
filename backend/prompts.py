@@ -1,13 +1,11 @@
-"""
-prompts.py: prompts used by LSDatasheet.
-All the prompts are here so they are easy to change.
-"""
+# prompts.py: all the prompts used by LSDatasheet, in one place so they are easy to change.
 
 # Sentence the LLM has to say when the answer is not in the chunks.
-# We keep it always in English so we can detect it easily.
+# It's always in English so we can detect it easily.
 NOT_FOUND = "OH NO! I could not find this information in the document."
 
-# Rules for the assistant
+
+# Assistant Rules
 SYSTEM_PROMPT = f"""You are LSDatasheet, an assistant that helps engineering students with datasheets.
 
 Rules:
@@ -19,18 +17,24 @@ Rules:
 5. Answer in the language the user asks for. The sentence of rule 4 is always in English."""
 
 
-# Prompts used by summarizer.py
+# Answer Styles (selected in the app sidebar)
+STYLES = {
+    "Concise": "Answer in 1 to 3 sentences with only the key facts.",
+    "Descriptive": "Answer with a complete explanation, step by step.",
+    "Practical examples": "Answer and add a short practical example of how to use it.",
+}
 
-# MAP step: summarize one part of the document
+
+# Summary Prompts (used by summarizer.py)
+# Map step: summarize one part of the document
 SECTION_SUMMARY_PROMPT = """Here is a part of a technical document (pages {first_page} to {last_page}):
 
 {text}
 
 In 1 or 2 sentences, say what topics this part covers. Do not add anything that is not in the text."""
 
-# REDUCE step: combine all the small summaries into the welcome message
-# REDUCE step: one sentence saying what the document is about
-# (the "Welcome to LSDatasheet!" part is added in summarizer.py, so it's always the same)
+# Reduce step: one sentence saying what the document is about
+# ("Welcome to LSDatasheet!" is added in summarizer.py, so it's always the same)
 WELCOME_PROMPT = """These are summaries of the different parts of a technical document, in order:
 
 {summaries}
@@ -39,28 +43,30 @@ In {language}, write ONE sentence that says what the document is (datasheet, pap
 and its main topics. Start with "This document". Write only that sentence."""
 
 
-
-
+# Building the Messages
 def format_context(chunks):
-    # Put each chunk with its page number, separated by a blank line
+    # Each chunk with its page number, separated by a blank line
     parts = []
     for chunk in chunks:
         parts.append(f"[Page {chunk.page}]\n{chunk.text}")
     return "\n\n".join(parts)
 
 
-def build_rag_messages(question, chunks, language=None):
-    # language = "Spanish", "Catalan"... (comes from the app)
-    # if it's None, the model answers in the language of the question
+def build_rag_messages(question, chunks, language=None, style=None):
+    # language = "Spanish", "Catalan"... (None = same language as the question)
+    # style = a key of STYLES (None = only the default rules)
     context = format_context(chunks)
 
-    # small models work better if we say the language explicitly
+    # Small models work better if we say the language explicitly
     if language is None:
         lang_rule = "Answer in the same language as the question."
     else:
         lang_rule = f"Answer in {language}."
 
-    # we repeat the important rules next to the question because small models forget them
+    if style in STYLES:
+        lang_rule = lang_rule + " " + STYLES[style]
+
+    # The important rules are repeated next to the question because small models forget them
     user_message = f"""CONTEXT:
 {context}
 
@@ -77,10 +83,11 @@ If you can answer, do NOT write that sentence."""
     return messages
 
 
+# Abstention ("I don't know") Detection
 def is_abstention(answer):
     # The model didn't know the answer if it STARTS with NOT_FOUND.
-    # We don't just check "NOT_FOUND in answer" because sometimes the model
-    # answers correctly and then adds the sentence at the end by mistake.
+    # Not just "NOT_FOUND in answer": sometimes the model answers correctly
+    # and then adds the sentence at the end by mistake.
     return answer.strip().startswith(NOT_FOUND)
 
 
@@ -91,36 +98,35 @@ def clean_answer(answer):
     return answer.replace(NOT_FOUND, "").strip()
 
 
+# Quick Test: python -m backend.prompts
 if __name__ == "__main__":
-    # Test: python -m backend.prompts
     from backend.llm import generate
     from backend.schemas import Chunk
 
-    model = "qwen2.5:3b"
-
-    # fake chunks to test without the vector database
+    # Fake chunks to test without the vector database
     chunk1 = Chunk(text="The PIC18F4321 has 8 Kbytes of Flash program memory and 512 bytes of RAM.",
                    page=3, chunk_id="c1", doc_id="test")
     chunk2 = Chunk(text="Timer0 can be configured as an 8-bit or 16-bit timer/counter.",
                    page=127, chunk_id="c2", doc_id="test")
     chunks = [chunk1, chunk2]
 
-    # (question, language)
+    # (question, language, style)
     tests = [
-        ("How much Flash memory does it have?", None),       # should answer, p. 3
-        ("What is the maximum operating voltage?", None),    # should say NOT_FOUND
-        ("¿Cuánta memoria Flash tiene?", None),              # should answer in Spanish
-        ("¿Cuánta memoria Flash tiene?", "Spanish"),         # should answer in Spanish
-        ("¿Cuál es el voltaje máximo?", "Spanish"),          # should say NOT_FOUND in English
+        ("How much Flash memory does it have?", None, None),           # should answer, p. 3
+        ("What is the maximum operating voltage?", None, None),        # should say NOT_FOUND
+        ("¿Cuánta memoria Flash tiene?", None, None),                  # should answer in Spanish
+        ("¿Cuánta memoria Flash tiene?", "Spanish", None),             # should answer in Spanish
+        ("¿Cuál es el voltaje máximo?", "Spanish", None),              # should say NOT_FOUND in English
+        ("How can Timer0 be configured?", None, "Practical examples"), # should add an example
     ]
 
-    # first call is slow because the model loads, so we do one before testing
-    generate([{"role": "user", "content": "hi"}], model=model)
+    # The first call is slow because the model loads, so we do one before testing
+    generate([{"role": "user", "content": "hi"}])
 
-    for question, language in tests:
-        messages = build_rag_messages(question, chunks, language)
-        answer, seconds = generate(messages, model=model)
-        print("\nQuestion:", question, "| language:", language)
+    for question, language, style in tests:
+        messages = build_rag_messages(question, chunks, language, style)
+        answer, seconds = generate(messages)
+        print("\nQuestion:", question, "| language:", language, "| style:", style)
         print("Raw answer:", answer)
         print("Clean answer:", clean_answer(answer))
         print("Abstained:", is_abstention(answer), "| time:", round(seconds, 2), "s")

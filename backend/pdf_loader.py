@@ -1,9 +1,6 @@
-# PDF loading: validates the file and extracts the text page by page.
-#
-# Output: a doc_id + a list of Page(page, text). Page numbers start at 1 so the
-# chunker can keep them on every Chunk and the app can cite sources.
-
-from __future__ import annotations
+# pdf_loader.py: validates the PDF and extracts the text page by page.
+# Output: a doc_id + a list of Page(page, text). Page numbers start at 1,
+# so the chunker can keep them on every Chunk and the app can cite sources.
 
 import hashlib
 import re
@@ -12,157 +9,189 @@ from pathlib import Path
 
 import pymupdf
 
+from backend import config
 from backend.schemas import Page
 
 
+# Errors (both are ValueError, the app shows str(error) to the user)
 class InvalidPDFError(ValueError):
-    """The file is not a valid / readable PDF."""
+    pass
 
 
 class NoTextError(ValueError):
-    """The PDF has no extractable text (e.g. scanned, image-only)."""
+    pass
 
 
-# A PDF is considered "without text" below these thresholds
-MIN_CHARS_PER_PAGE = 20      # a page with fewer chars counts as empty
-MIN_TEXT_PAGE_RATIO = 0.1    # at least 10% of pages must have text
-
-# A line is a header/footer if it appears on at least this fraction of pages
-REPEATED_LINE_RATIO = 0.5
-MIN_PAGES_FOR_HEADER_REMOVAL = 4
-EDGE_LINES = 4 # lines checked at the top and bottom of each page
-
-_LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st"}
+# Ligatures: some fonts write two or three letters as one character
+LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st"}
 
 
-# public API
+# Main Function
+def load_pdf(source):
+    # source = path or bytes (uploaded_file.getvalue()) -> returns (doc_id, pages)
+    data = read_bytes(source)
+    doc = open_pdf(data)
 
-def load_pdf(source: str | Path | bytes) -> tuple[str, list[Page]]:
-    """Validates the PDF and returns (doc_id, pages).
-
-    `source` can be a path or the raw bytes (what Streamlit's file_uploader
-    gives you with uploaded_file.getvalue()).
-
-    Raises InvalidPDFError or NoTextError with a message ready to show the user.
-    """
-    data = _read_bytes(source)
-    doc = _open_pdf(data)
     try:
-        pages = [Page(page=i + 1, text=_clean_text(p.get_text("text")))
-                 for i, p in enumerate(doc)]
+        pages = []
+        for i, pdf_page in enumerate(doc):
+            text = clean_text(pdf_page.get_text("text"))
+            pages.append(Page(page=i + 1, text=text))
     finally:
         doc.close()
 
-    _check_has_text(pages)
-    pages = _remove_repeated_lines(pages)
+    check_has_text(pages)
+    pages = remove_repeated_lines(pages)
     return compute_doc_id(data), pages
 
 
-def compute_doc_id(data: bytes) -> str:
+def compute_doc_id(data):
+    # Same PDF = same id, so it is never processed twice
     return hashlib.sha256(data).hexdigest()[:16]
 
 
-# validation
-
-def _read_bytes(source: str | Path | bytes) -> bytes:
+# Validation
+def read_bytes(source):
     if isinstance(source, (bytes, bytearray)):
         return bytes(source)
+
     path = Path(source)
     if not path.is_file():
         raise InvalidPDFError(f"File not found: {path}")
     return path.read_bytes()
 
 
-def _open_pdf(data: bytes) -> pymupdf.Document:
-    # Check the magic bytes first: a .txt renamed to .pdf must be rejected
+def open_pdf(data):
+    # Every PDF starts with "%PDF-", so a renamed .txt is rejected here
     if not data[:1024].lstrip().startswith(b"%PDF-"):
         raise InvalidPDFError("The file is not a PDF.")
+
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as e:
         raise InvalidPDFError(f"The PDF is corrupted or cannot be read ({e}).") from e
+
     if doc.needs_pass:
         doc.close()
         raise InvalidPDFError("The PDF is password-protected.")
+
     if doc.page_count == 0:
         doc.close()
         raise InvalidPDFError("The PDF has no pages.")
+
     return doc
 
 
-def _check_has_text(pages: list[Page]) -> None:
-    with_text = sum(len(p.text) >= MIN_CHARS_PER_PAGE for p in pages)
-    if with_text / len(pages) < MIN_TEXT_PAGE_RATIO:
+def check_has_text(pages):
+    pages_with_text = 0
+    for page in pages:
+        if len(page.text) >= config.MIN_CHARS_PER_PAGE:
+            pages_with_text += 1
+
+    # Too few pages with text = scanned PDF
+    if pages_with_text / len(pages) < config.MIN_TEXT_PAGE_RATIO:
         raise NoTextError(
             "This PDF has no extractable text (it is probably a scanned, "
             "image-only document). OCR is not supported."
         )
 
 
-# cleaning
+# Text Cleaning
+def clean_text(text):
+    for ligature, letters in LIGATURES.items():
+        text = text.replace(ligature, letters)
 
-def _clean_text(text: str) -> str:
-    for lig, rep in _LIGATURES.items():
-        text = text.replace(lig, rep)
-    # Soft hyphens / control chars some PDFs use for hyphenation ("ob\x02jects")
-    text = re.sub(r"[­\u0002]\n?", "", text)
-    # Re-join words split across lines: "recog-\nnising" -> "recognising".
-    # Only between lowercase letters, so "VREF-\nCVREF" or "-40°C" are untouched.
+    # Soft hyphens and control chars: "ob\u0002jects" to "objects"
+    text = re.sub(r"[\u00ad\u0002]\n?", "", text)
+
+    # Split words: "recog-\nnising" to "recognising" (but "VREF-\nCVREF" stays)
     text = re.sub(r"(?<=[a-z])-\n(?=[a-z])", "", text)
+
+    # Tabs and repeated spaces (also non-breaking \u00a0) to one space
     text = text.replace("\t", " ")
-    text = re.sub(r"[  ]{2,}", " ", text)
-    text = "\n".join(line.strip() for line in text.splitlines())
+    text = re.sub(r"[ \u00a0]{2,}", " ", text)
+
+    lines = []
+    for line in text.splitlines():
+        lines.append(line.strip())
+    text = "\n".join(lines)
+
+    # Max one empty line in a row
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
-def _line_key(line: str) -> str:
-    # Page numbers change on every page ("DS39689B-page 364", "Page 5 of 10"),
-    # so digits are ignored when comparing lines
+# Header and Footer Removal
+def line_key(line):
+    # Digits to "#", so "Page 5 of 10" and "Page 6 of 10" are the same line
     return re.sub(r"\d+", "#", line.strip().lower())
 
 
-def _edge_indices(n_lines: int) -> set[int]:
-    # Headers/footers only live at the top or bottom of the page
-    return set(range(min(EDGE_LINES, n_lines))) | set(range(max(0, n_lines - EDGE_LINES), n_lines))
+def edge_positions(n_lines):
+    # First and last EDGE_LINES lines of a page (10 lines to {0,1,2,3,6,7,8,9})
+    top = set(range(min(config.EDGE_LINES, n_lines)))
+    bottom = set(range(max(0, n_lines - config.EDGE_LINES), n_lines))
+    return top | bottom
 
 
-def _remove_repeated_lines(pages: list[Page]) -> list[Page]:
-    if len(pages) < MIN_PAGES_FOR_HEADER_REMOVAL:
+def remove_repeated_lines(pages):
+    if len(pages) < config.MIN_PAGES_FOR_HEADER_REMOVAL:
         return pages
 
-    # Count on how many pages each edge line appears (once per page)
-    page_lines = [[l for l in p.text.splitlines() if l.strip()] for p in pages]
+    page_lines = []
+    for page in pages:
+        lines = []
+        for line in page.text.splitlines():
+            if line.strip():
+                lines.append(line)
+        page_lines.append(lines)
+
+    # On how many pages each edge line appears (once per page)
     counts = Counter()
     for lines in page_lines:
-        counts.update({_line_key(lines[i]) for i in _edge_indices(len(lines))})
+        edge_keys = set()
+        for i in edge_positions(len(lines)):
+            edge_keys.add(line_key(lines[i]))
+        counts.update(edge_keys)
 
-    threshold = REPEATED_LINE_RATIO * len(pages)
-    repeated = {k for k, c in counts.items() if c >= threshold}
-    # A line that is only a number at the top/bottom is a page number.
-    # Numbers inside the page are kept: in datasheet tables they are data.
+    threshold = config.REPEATED_LINE_RATIO * len(pages)
+    repeated = set()
+    for key, n_pages in counts.items():
+        if n_pages >= threshold:
+            repeated.add(key)
+
+    # A number alone at the top/bottom is a page number (numbers inside tables are kept)
     repeated.add("#")
 
     cleaned = []
-    for p, lines in zip(pages, page_lines):
-        edges = _edge_indices(len(lines))
-        kept = [l for i, l in enumerate(lines)
-                if not (i in edges and _line_key(l) in repeated)]
-        cleaned.append(Page(page=p.page, text="\n".join(kept)))
+    for page, lines in zip(pages, page_lines):
+        edges = edge_positions(len(lines))
+        kept = []
+        for i, line in enumerate(lines):
+            if not (i in edges and line_key(line) in repeated):
+                kept.append(line)
+        cleaned.append(Page(page=page.page, text="\n".join(kept)))
     return cleaned
 
 
-# ---------------------------------------------------------------- quick test
-# python -m backend.pdf_loader data/some.pdf
-
+# Quick Test: python -m backend.pdf_loader data/pdfs/74LS157.pdf
 if __name__ == "__main__":
     import sys
 
     doc_id, pages = load_pdf(sys.argv[1])
-    total = sum(len(p.text) for p in pages)
-    empty = [p.page for p in pages if not p.text]
+    total = 0
+    empty = []
+    for page in pages:
+        total += len(page.text)
+        if not page.text:
+            empty.append(page.page)
+
     print(f"doc_id: {doc_id} | pages: {len(pages)} | chars: {total}")
     if empty:
         print(f"pages without text: {empty}")
-    first = next(p for p in pages if p.text)
-    print(f"\n--- page {first.page} (first 800 chars) ---\n{first.text[:800]}")
+
+    # First page with text
+    for page in pages:
+        if page.text:
+            print(f"\n--- page {page.page} ---\n{page.text[:800]}")
+            break
