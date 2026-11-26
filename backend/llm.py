@@ -38,6 +38,23 @@ def generate(messages, model, temperature=0.1):
     return answer, seconds
 
 
+def generate_stream(messages, model, temperature=0.1):
+    # Same as generate(), but returns the answer piece by piece (streaming),
+    # so the app can show the text while the LLM is writing it.
+    # It's a generator: the call to Ollama happens when we start reading it.
+    try:
+        stream = ollama.chat(model=model, messages=messages,
+                             options={"temperature": temperature}, stream=True)
+        for part in stream:
+            yield part["message"]["content"]
+    except ConnectionError as e:
+        raise LLMError("Cannot connect to Ollama. Open the Ollama app and try again.") from e
+    except ollama.ResponseError as e:
+        if e.status_code == 404:
+            raise LLMError(f"Model '{model}' is not downloaded. Run: ollama pull {model}") from e
+        raise LLMError(f"Ollama returned an error: {e.error}") from e
+
+
 if __name__ == "__main__":
     # Test: python -m backend.llm
     messages = [
