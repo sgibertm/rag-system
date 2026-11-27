@@ -5,3 +5,13 @@ backgroundColor = "#f8fafc"
 secondaryBackgroundColor = "#dbeafe"
 textColor = "#0f172a"
 font = "sans serif"
+
+[client]
+toolbarMode = "minimal"   # hides the "Deploy" button
+
+[theme.sidebar]
+backgroundColor = "#0b0f19"
+secondaryBackgroundColor = "#151b29"
+textColor = "#e7eaf0"
+primaryColor = "#4f8cff"
+borderColor = "#232a3a"

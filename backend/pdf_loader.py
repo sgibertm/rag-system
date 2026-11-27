@@ -28,7 +28,7 @@ LIGATURES = {"ﬀ": "ff", "ﬁ": "fi", "ﬂ": "fl", "ﬃ": "ffi", "ﬄ": "ffl", 
 
 # Main Function
 def load_pdf(source):
-    # source = path or bytes (uploaded_file.getvalue()) -> returns (doc_id, pages)
+    # source = path or bytes (uploaded_file.getvalue()), returns (doc_id, pages)
     data = read_bytes(source)
     doc = open_pdf(data)
 

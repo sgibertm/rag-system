@@ -6,9 +6,8 @@ from backend.api import LLMError, answer, finish_answer, summarize
 from frontend.state import add_message
 
 
-USER_AVATAR = "🧑‍🎓"
-ASSISTANT_AVATAR = "📘"
-
+USER_AVATAR = ":material/person:"
+ASSISTANT_AVATAR = "assets/rag-icon.png"
 
 # Header
 def render_header():
