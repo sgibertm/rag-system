@@ -462,5 +462,103 @@
   "answer": null,
   "pages": [],
   "answerable": false
+  },
+{
+    "id": 59,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "Which Wi-Fi standards does the ESP32 support and what is the maximum data rate?",
+    "answer": "802.11b/g/n. 802.11n (2.4 GHz), up to 150 Mbps.",
+    "pages": [
+      3
+    ],
+    "answerable": true
+  },
+{
+    "id": 60,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "Which Bluetooth specification is the ESP32 compliant with?",
+    "answer": "Compliant with Bluetooth v4.2 BR/EDR and Bluetooth LE specifications. The Bluetooth stack of the chip is compliant with the Bluetooth v4.2 BR/EDR and Bluetooth LE specifications.",
+    "pages": [
+      3,
+      35
+    ],
+    "answerable": true
+  },
+{
+    "id": 61,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "What microprocessor does the ESP32 contain and what is its maximum clock frequency?",
+    "answer": "ESP32 contains one or two low-power Xtensa® 32-bit LX6 microprocessor(s) with the following features: 7-stage pipeline to support the clock frequency of up to 240 MHz (160 MHz for ESP32-S0WD (NRND)).",
+    "pages": [
+      26
+    ],
+    "answerable": true
+  },
+{
+    "id": 62,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "What is the operating temperature range of the ESP32?",
+    "answer": "The operating temperature of ESP32-U4WDH ranges from –40 °C to 105 °C, due to the in-package flash. The operating temperature of ESP32-D0WDR2-V3 ranges from –40 °C to 85 °C, due to the in-package PSRAM. For other chips that have no in-package flash or PSRAM, their operating temperature is –40 °C ~ 125 °C.",
+    "pages": [
+      52
+    ],
+    "answerable": true
+  },
+{
+    "id": 63,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "How many SPI controllers does the ESP32 have and which ones can work as master or slave?",
+    "answer": "ESP32 integrates four SPI controllers which can be used to communicate with external devices that use the SPI protocol. Controller SPI0 is used as a buffer for accessing external memory. Controller SPI1 can be used as a master. Controllers SPI2 and SPI3 can be configured as either a master or a slave.",
+    "pages": [
+      37
+    ],
+    "answerable": true
+  },
+{
+    "id": 64,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "How many I2C bus interfaces does the ESP32 have?",
+    "answer": "ESP32 has two I2C bus interfaces which can serve as I2C master or slave, depending on the user’s configuration.",
+    "pages": [
+      38
+    ],
+    "answerable": true
+  },
+{
+    "id": 65,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "How many capacitive-sensing GPIOs does the ESP32 have?",
+    "answer": "ESP32 has 10 capacitive-sensing GPIOs, which detect variations induced by touching or approaching the GPIOs with a finger or other objects.",
+    "pages": [
+      45
+    ],
+    "answerable": true
+  },
+{
+    "id": 66,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "What is the power consumption of the ESP32 in Deep-sleep mode?",
+    "answer": "Power consumption in Deep-sleep mode is 10 µA.",
+    "pages": [
+      5,
+      30
+    ],
+    "answerable": true
+  },
+{
+    "id": 67,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "Does the ESP32 support Wi-Fi 6 (802.11ax)?",
+    "answer": null,
+    "pages": [],
+    "answerable": false
+  },
+{
+    "id": 68,
+    "document": "ESP32 Datasheet.pdf",
+    "question": "Does the ESP32 include a built-in USB controller?",
+    "answer": null,
+    "pages": [],
+    "answerable": false
   }
 ]
