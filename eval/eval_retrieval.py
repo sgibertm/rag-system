@@ -22,7 +22,7 @@ from sentence_transformers import SentenceTransformer
 from backend.pdf_loader import load_pdf
 from backend.schemas import Chunk
 
-DATA_DIR = "data"
+DATA_DIR = "data/pdfs"
 QUESTIONS = "eval/questions.json"
 RESULTS = "eval/results_retrieval.csv"
 RETRIEVED = "eval/retrieved.json"

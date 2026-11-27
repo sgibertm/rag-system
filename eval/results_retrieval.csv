@@ -1,0 +1,4 @@
+﻿experiment;embedding_model;chunk_size;overlap;questions;hit@3;hit@5;prep_seconds;avg_query_ms;chunks
+embeddings;sentence-transformers/all-MiniLM-L6-v2;800;150;60;0.75;0.883;15.7;19.7;2023
+embeddings;BAAI/bge-small-en-v1.5;800;150;60;0.85;0.9;52.3;16.1;2023
+embeddings;intfloat/multilingual-e5-small;800;150;60;0.8;0.85;40.2;15.8;2023
